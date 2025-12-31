@@ -1,0 +1,261 @@
+PRACTICAL:-Database
+
+-------------------------activitymain.xml--------------------------------
+
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:layout_marginTop="100dp">
+
+    <EditText
+        android:id="@+id/edtUserId"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="User ID"
+        android:inputType="number" />
+
+    <EditText
+        android:id="@+id/edtName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/edtUserId"
+        android:hint="Name"
+        android:minHeight="48dp" />
+
+    <EditText
+        android:id="@+id/edtPassword"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/edtName"
+        android:hint="Password"
+        android:minHeight="48dp" />
+
+    <Button
+        android:id="@+id/btnAddUser"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Add User"
+        android:layout_below="@id/edtPassword" />
+
+    <Button
+        android:id="@+id/btnGetUser"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Get User"
+        android:layout_below="@id/btnAddUser" />
+
+    <Button
+        android:id="@+id/btnUpdateUser"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Update Password"
+        android:layout_below="@id/btnGetUser" />
+
+    <Button
+        android:id="@+id/btnDeleteUser"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Delete User"
+        android:layout_below="@id/btnUpdateUser" />
+</RelativeLayout>
+
+
+-----------------------MainActivity.java------------------------
+
+package com.example.dss;
+
+import android.annotation.SuppressLint;
+import android.database.Cursor;
+import android.os.Bundle;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.Toast;
+
+import androidx.appcompat.app.AppCompatActivity;
+
+public class MainActivity extends AppCompatActivity {
+
+    private EditText edtName, edtPassword, edtUserId;
+    private Button btnAddUser, btnGetUser, btnUpdateUser, btnDeleteUser;
+    private database db;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        // Initialize views
+        edtName = findViewById(R.id.edtName);
+        edtPassword = findViewById(R.id.edtPassword);
+        edtUserId = findViewById(R.id.edtUserId);
+        btnAddUser = findViewById(R.id.btnAddUser);
+        btnGetUser = findViewById(R.id.btnGetUser);
+        btnUpdateUser = findViewById(R.id.btnUpdateUser);
+        btnDeleteUser = findViewById(R.id.btnDeleteUser);
+
+        // Initialize the database helper
+        db = new database(this);
+
+        // Add a new user
+        btnAddUser.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String name = edtName.getText().toString();
+                String password = edtPassword.getText().toString();
+
+                if (!name.isEmpty() && !password.isEmpty()) {
+                    db.addUser(name, password);
+                    Toast.makeText(MainActivity.this, "User added", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+
+        // Get a user by ID
+        btnGetUser.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String userId = edtUserId.getText().toString().trim();
+                if (!userId.isEmpty()) {
+                    try {
+                        int id = Integer.parseInt(userId);
+                        Cursor cursor = db.getUser(id);
+                        if (cursor != null && cursor.moveToFirst()) {
+                            // Use the correct column names as per your database schema
+                            String name = cursor.getString(cursor.getColumnIndex("name"));
+                            String password = cursor.getString(cursor.getColumnIndex("password"));
+
+                            edtName.setText(name);
+                            edtPassword.setText(password);
+                        } else {
+                            Toast.makeText(MainActivity.this, "User not found", Toast.LENGTH_SHORT).show();
+                        }
+                        if (cursor != null) cursor.close(); // Always close the cursor
+                    } catch (NumberFormatException e) {
+                        Toast.makeText(MainActivity.this, "Invalid User ID", Toast.LENGTH_SHORT).show();
+                    }
+                } else {
+                    Toast.makeText(MainActivity.this, "Please enter User ID", Toast.LENGTH_SHORT).show();
+                }
+            }
+
+        });
+
+        // Update a user's password
+        btnUpdateUser.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String userId = edtUserId.getText().toString();
+                String newPassword = edtPassword.getText().toString();
+
+                if (!userId.isEmpty() && !newPassword.isEmpty()) {
+                    int rowsUpdated = db.updateUserPassword(Integer.parseInt(userId), newPassword);
+                    if (rowsUpdated > 0) {
+                        Toast.makeText(MainActivity.this, "Password updated", Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(MainActivity.this, "User not found", Toast.LENGTH_SHORT).show();
+                    }
+                }
+            }
+        });
+
+        // Delete a user
+        btnDeleteUser.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String userId = edtUserId.getText().toString();
+                if (!userId.isEmpty()) {
+                    db.deleteUser(Integer.parseInt(userId));
+                    Toast.makeText(MainActivity.this, "User deleted", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+    }
+}
+
+
+-----------------------------------database.java------------------------
+
+package com.example.dss;
+
+import android.content.ContentValues;
+import android.content.Context;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteOpenHelper;
+
+public class database extends SQLiteOpenHelper {
+
+    // Database name and version
+    private static final String DB_NAME = "cars.db";
+    private static final int DB_VERSION = 1;
+
+    // Table name and columns
+    private static final String TABLE_USER = "user";
+    private static final String COLUMN_ID = "id";
+    private static final String COLUMN_NAME = "name";
+    private static final String COLUMN_PASSWORD = "password";
+
+    public database(Context context) {
+        super(context, DB_NAME, null, DB_VERSION);
+    }
+
+    @Override
+    public void onCreate(SQLiteDatabase db) {
+        // Create the user table
+        String CREATE_TABLE_USER = "CREATE TABLE " + TABLE_USER + " ("
+                + COLUMN_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, "
+                + COLUMN_NAME + " TEXT, "
+                + COLUMN_PASSWORD + " TEXT);";
+        db.execSQL(CREATE_TABLE_USER);
+    }
+
+    @Override
+    public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+        // Handle database upgrade if needed
+        if (oldVersion < newVersion) {
+            db.execSQL("DROP TABLE IF EXISTS " + TABLE_USER);
+            onCreate(db);
+        }
+    }
+
+    // Add a new user to the database
+    public void addUser(String name, String password) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(COLUMN_NAME, name);
+        values.put(COLUMN_PASSWORD, password);
+        db.insert(TABLE_USER, null, values);
+        db.close();
+    }
+
+    // Get a user from the database
+    public Cursor getUser(int userId) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.query(TABLE_USER, null, COLUMN_ID + "=?",
+                new String[]{String.valueOf(userId)}, null, null, null);
+        return cursor;
+    }
+
+    // Get all users from the database
+    public Cursor getAllUsers() {
+        SQLiteDatabase db = this.getReadableDatabase();
+        return db.rawQuery("SELECT * FROM " + TABLE_USER, null);
+    }
+
+    // Update a user's password
+    public int updateUserPassword(int userId, String newPassword) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(COLUMN_PASSWORD, newPassword);
+        return db.update(TABLE_USER, values, COLUMN_ID + "=?", new String[]{String.valueOf(userId)});
+    }
+
+    // Delete a user
+    public void deleteUser(int userId) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        db.delete(TABLE_USER, COLUMN_ID + "=?", new String[]{String.valueOf(userId)});
+        db.close();
+    }
+}
